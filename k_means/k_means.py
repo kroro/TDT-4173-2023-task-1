@@ -1,50 +1,82 @@
-import numpy as np 
-import pandas as pd 
-# IMPORTANT: DO NOT USE ANY OTHER 3RD PARTY PACKAGES
-# (math, random, collections, functools, etc. are perfectly fine)
+from typing import Self
+import numpy as np
+import pandas as pd
 
 
 class KMeans:
-    
-    def __init__():
-        # NOTE: Feel free add any hyperparameters 
-        # (with defaults) as you see fit
-        pass
-        
+
+    def __init__(self, k=2):
+
+        self.k = k
+        self.centroids = None
+        self.labels = None
+
+    def _get_initial_centroids(self, data, seed=None):
+        '''Randomly choose k data points as initial centroids'''
+        if seed is not None: # for reproducibility purposes
+            np.random.seed(seed)
+        n = data.shape[0] # number of data points
+
+        # pick K indices from range [0, N).
+        rand_indices = np.random.randint(0, n, self.k)
+        init_center = data[rand_indices,:]
+
+        return init_center
+
+
     def fit(self, X):
         """
         Estimates parameters for the classifier
-        
+
         Args:
             X (array<m,n>): a matrix of floats with
                 m rows (#samples) and n columns (#features)
         """
-        # TODO: Implement
-        raise NotImplemented()
-    
+
+        X = np.asarray(X)
+        self.centroids = self._get_initial_centroids(X)
+
+        for _ in range(0, X.shape[0]**2):
+            # assign each data point to the nearest centroid
+            distances = cross_euclidean_distance(X, self.centroids)
+
+            labels = np.argmin(distances, axis=1)
+            updated_centroids = np.array([X[labels == i].mean(axis=0) for i in range(self.k)])
+
+            # check for convergence
+            if np.all(self.centroids == updated_centroids):
+                break
+
+            self.centroids = updated_centroids
+
+        return self.centroids
+
     def predict(self, X):
         """
         Generates predictions
-        
+
         Note: should be called after .fit()
-        
+
         Args:
-            X (array<m,n>): a matrix of floats with 
+            X (array<m,n>): a matrix of floats with
                 m rows (#samples) and n columns (#features)
-            
+
         Returns:
             A length m integer array with cluster assignments
-            for each point. E.g., if X is a 10xn matrix and 
+            for each point. E.g., if X is a 10xn matrix and
             there are 3 clusters, then a possible assignment
             could be: array([2, 0, 0, 1, 2, 1, 1, 0, 2, 2])
         """
-        # TODO: Implement 
-        raise NotImplemented()
-    
+        X_pred = X.values
+        distances = cross_euclidean_distance(X_pred, self.centroids)
+        print(distances.shape)
+        self.labels = np.argmin(distances, axis=1)
+        return self.labels
+
     def get_centroids(self):
         """
         Returns the centroids found by the K-mean algorithm
-        
+
         Example with m centroids in an n-dimensional space:
         >>> model.get_centroids()
         numpy.array([
@@ -56,23 +88,20 @@ class KMeans:
             [xm_1, xm_2, ..., xm_n]
         ])
         """
-        pass
-    
-    
-    
-    
-# --- Some utility functions 
+
+        return self.centroids
+
 
 def euclidean_distance(x, y):
     """
-    Computes euclidean distance between two sets of points 
-    
+    Computes euclidean distance between two sets of points
+
     Note: by passing "y=0.0", it will compute the euclidean norm
-    
+
     Args:
-        x, y (array<...,n>): float tensors with pairs of 
-            n-dimensional points 
-            
+        x, y (array<...,n>): float tensors with pairs of
+            n-dimensional points
+
     Returns:
         A float array of shape <...> with the pairwise distances
         of each x and y point
@@ -81,10 +110,10 @@ def euclidean_distance(x, y):
 
 def cross_euclidean_distance(x, y=None):
     """
-    
-    
+
+
     """
-    y = x if y is None else y 
+    y = x if y is None else y
     assert len(x.shape) >= 2
     assert len(y.shape) >= 2
     return euclidean_distance(x[..., :, None, :], y[..., None, :, :])
@@ -93,41 +122,41 @@ def cross_euclidean_distance(x, y=None):
 def euclidean_distortion(X, z):
     """
     Computes the Euclidean K-means distortion
-    
+
     Args:
-        X (array<m,n>): m x n float matrix with datapoints 
+        X (array<m,n>): m x n float matrix with datapoints
         z (array<m>): m-length integer vector of cluster assignments
-    
+
     Returns:
-        A scalar float with the raw distortion measure 
+        A scalar float with the raw distortion measure
     """
     X, z = np.asarray(X), np.asarray(z)
     assert len(X.shape) == 2
     assert len(z.shape) == 1
     assert X.shape[0] == z.shape[0]
-    
+
     distortion = 0.0
     clusters = np.unique(z)
     for i, c in enumerate(clusters):
         Xc = X[z == c]
         mu = Xc.mean(axis=0)
-        distortion += ((Xc - mu) ** 2).sum(axis=1)
-        
+        distortion += ((Xc - mu) ** 2).sum()
+
     return distortion
 
 
 def euclidean_silhouette(X, z):
     """
-    Computes the average Silhouette Coefficient with euclidean distance 
-    
+    Computes the average Silhouette Coefficient with euclidean distance
+
     More info:
         - https://www.sciencedirect.com/science/article/pii/0377042787901257
         - https://en.wikipedia.org/wiki/Silhouette_(clustering)
-    
+
     Args:
-        X (array<m,n>): m x n float matrix with datapoints 
+        X (array<m,n>): m x n float matrix with datapoints
         z (array<m>): m-length integer vector of cluster assignments
-    
+
     Returns:
         A scalar float with the silhouette score
     """
@@ -135,7 +164,7 @@ def euclidean_silhouette(X, z):
     assert len(X.shape) == 2
     assert len(z.shape) == 1
     assert X.shape[0] == z.shape[0]
-    
+
     # Compute average distances from each x to all other clusters
     clusters = np.unique(z)
     D = np.zeros((len(X), len(clusters)))
@@ -146,12 +175,11 @@ def euclidean_silhouette(X, z):
             d = cross_euclidean_distance(X[in_cluster_a], X[in_cluster_b])
             div = d.shape[1] - int(i == j)
             D[in_cluster_a, j] = d.sum(axis=1) / np.clip(div, 1, None)
-    
-    # Intra distance 
+
+    # Intra distance
     a = D[np.arange(len(X)), z]
-    # Smallest inter distance 
+    # Smallest inter distance
     inf_mask = np.where(z[:, None] == clusters[None], np.inf, 0)
     b = (D + inf_mask).min(axis=1)
-    
+
     return np.mean((b - a) / np.maximum(a, b))
-  
